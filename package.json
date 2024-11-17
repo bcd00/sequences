@@ -1,0 +1,49 @@
+{
+  "name": "@bcd00/sequences",
+  "version": "1.0.0",
+  "description": "Micro-library providing a Kotlin-style lazy Sequence feature for JavaScript",
+  "keywords": [
+    "lazy",
+    "sequence"
+  ],
+  "homepage": "https://github.com/bcd00/generators",
+  "bugs": {
+    "url": "https://github.com/bcd00/generators/issues"
+  },
+  "author": "Brython Caley-Davies (https://brython.cymru)",
+  "repository": {
+    "url": "git+https://github.com/bcd00/generators.git",
+    "type": "git"
+  },
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "ci": "npm run clean && npm run lint && npm run test && npm run build",
+    "clean": "rm -rf dist && rm -rf coverage",
+    "lint": "prettier --check . && eslint",
+    "postbuild": "attw --pack . --ignore-rules=cjs-resolves-to-esm",
+    "prepublishOnly": "npm run ci",
+    "release": "changeset version && changeset publish",
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.17.0",
+    "@changesets/cli": "^2.27.9",
+    "@eslint/js": "^9.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.14.0",
+    "@types/node": "^22.8.1",
+    "@vitest/coverage-istanbul": "^2.1.5",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "private": false
+}
