@@ -37,7 +37,7 @@
     "prepublishOnly": "npm run ci",
     "release": "changeset version && changeset publish",
     "test": "vitest run --coverage tests",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.3",
