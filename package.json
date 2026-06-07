@@ -1,21 +1,25 @@
 {
   "name": "@bcd00/sequences",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Micro-library providing a Kotlin-style lazy Sequence feature for JavaScript",
   "keywords": [
     "lazy",
     "sequence"
   ],
-  "homepage": "https://github.com/bcd00/generators",
+  "packageManager": "pnpm@11.5.1",
+  "homepage": "https://github.com/bcd00/sequences",
   "bugs": {
-    "url": "https://github.com/bcd00/generators/issues"
+    "url": "https://github.com/bcd00/sequences/issues"
   },
   "author": "Brython Caley-Davies (https://brython.cymru)",
   "repository": {
-    "url": "git+https://github.com/bcd00/generators.git",
+    "url": "git+https://github.com/bcd00/sequences.git",
     "type": "git"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "files": [
     "dist"
   ],
@@ -26,24 +30,32 @@
     "build": "tsc",
     "ci": "npm run clean && npm run lint && npm run test && npm run build",
     "clean": "rm -rf dist && rm -rf coverage",
-    "lint": "prettier --check . && eslint",
+    "format": "prettier .",
+    "format:fix": "prettier --write .",
+    "lint": "eslint",
     "postbuild": "attw --pack . --ignore-rules=cjs-resolves-to-esm",
     "prepublishOnly": "npm run ci",
     "release": "changeset version && changeset publish",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.17.0",
-    "@changesets/cli": "^2.27.9",
-    "@eslint/js": "^9.15.0",
-    "@typescript-eslint/eslint-plugin": "^8.14.0",
-    "@types/node": "^22.8.1",
-    "@vitest/coverage-istanbul": "^2.1.5",
-    "eslint": "^9.15.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.5"
+    "@arethetypeswrong/cli": "0.18.3",
+    "@changesets/cli": "2.31.0",
+    "@eslint/js": "10.0.1",
+    "@typescript-eslint/eslint-plugin": "8.60.1",
+    "@types/node": "25.9.1",
+    "@vitest/coverage-istanbul": "4.1.8",
+    "eslint": "10.4.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.6",
+    "globals": "17.6.0",
+    "prettier": "3.8.3",
+    "taze": "19.14.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.60.1",
+    "vite": "8.0.16",
+    "vitest": "4.1.8"
   },
   "private": false
 }
