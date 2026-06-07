@@ -1,0 +1,24 @@
+minimumReleaseAge: 1440
+
+trustPolicy:
+
+  default: high
+
+allowUnusedPatches: false
+
+auditConfig:
+
+  ignoreGhsas: []
+
+resolutionMode: highest
+
+gitBranchLockfile: false
+
+packageImportMethod: auto
+
+fetchSettings:
+
+  ignoreExoticDependencies: true
+
+allowBuilds:
+  esbuild: true
