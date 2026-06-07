@@ -19,10 +19,9 @@
   },
   "exclude": [
     "node_modules",
-    "**/*.spec.*",
     "dist",
     "coverage",
-    "eslint.config.js",
-    "vitest.config.js"
+    "eslint.config",
+    "vitest.config"
   ]
 }

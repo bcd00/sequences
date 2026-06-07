@@ -1,20 +1,35 @@
 import js from "@eslint/js";
-import prettier from "eslint-config-prettier";
-import typescript from "@typescript-eslint/eslint-plugin";
+import prettierConfig from "eslint-config-prettier";
+import prettierPlugin from "eslint-plugin-prettier";
+import { defineConfig } from "eslint/config";
+import globals from "globals";
+import typescriptEslint from "typescript-eslint";
 
-export default [
-  prettier,
-  js.configs.recommended,
+export default defineConfig([
   {
+    ignores: ["dist", ".vite", "coverage", "node_modules"]
+  },
+  {
+    extends: [js.configs.recommended, ...typescriptEslint.configs.recommended],
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser
+    },
     plugins: {
-      ts: typescript
+      prettier: prettierPlugin
+    },
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_"
+        }
+      ],
+      "prettier/prettier": "warn",
+      ...prettierConfig.rules
     }
-  },
-  {
-    files: ["**/*.{js,mjs,cjs}"],
-    rules: {}
-  },
-  {
-    ignores: ["dist/", "node_modules/"]
   }
-];
+]);

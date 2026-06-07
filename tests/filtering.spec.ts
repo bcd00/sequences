@@ -1,4 +1,4 @@
-import { generateSequence, Sequence } from "../index.js";
+import { Sequence } from "../index.js";
 import { assert, describe, test } from "vitest";
 
 describe("distinct", () => {
@@ -8,14 +8,23 @@ describe("distinct", () => {
     assert.deepEqual(val, [0, 1, 2]);
   });
 
+  test("distinctUndefined", () => {
+    const seq = Sequence([undefined]);
+    const val = seq.distinct().toArray();
+    assert.deepEqual(val, [undefined]);
+  });
+
   test("distinctDoesNotReturnCompletionValue", () => {
     function* gen() {
       yield 1;
       return 999;
     }
     const distinct = Sequence(gen()).distinct();
-    assert.deepEqual(distinct.generator.next(), { value: 1, done: false });
-    assert.deepEqual(distinct.generator.next(), { value: undefined, done: true });
+    assert.deepEqual(distinct.next(), { value: 1, done: false });
+    assert.deepEqual(distinct.next(), {
+      value: undefined,
+      done: true
+    });
   });
 });
 
@@ -63,8 +72,11 @@ describe("drop", () => {
       return 999;
     }
     const dropped = Sequence(gen()).drop(0);
-    assert.deepEqual(dropped.generator.next(), { value: 1, done: false });
-    assert.deepEqual(dropped.generator.next(), { value: undefined, done: true });
+    assert.deepEqual(dropped.next(), { value: 1, done: false });
+    assert.deepEqual(dropped.next(), {
+      value: undefined,
+      done: true
+    });
   });
 });
 
@@ -256,6 +268,12 @@ describe("minusElement", () => {
     const val = seq.minusElement(1).toArray();
     assert.deepEqual(val, []);
   });
+
+  test("minusDuplicate", () => {
+    const seq = Sequence([0, 1, 0, 2]);
+    const val = seq.minusElement(0).toArray();
+    assert.deepEqual(val, [1, 0, 2]);
+  });
 });
 
 describe("take", () => {
@@ -288,8 +306,8 @@ describe("take", () => {
       return 999;
     }
     const taken = Sequence(gen()).take(5);
-    assert.deepEqual(taken.generator.next(), { value: 1, done: false });
-    assert.deepEqual(taken.generator.next(), { value: undefined, done: true });
+    assert.deepEqual(taken.next(), { value: 1, done: false });
+    assert.deepEqual(taken.next(), { value: undefined, done: true });
   });
 });
 
@@ -328,5 +346,18 @@ describe("takeWhile", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.takeWhile((x, i) => x * x - i === 0).toArray();
     assert.deepEqual(val, [0, 1]);
+  });
+
+  test("takeWhileShortCircuitsSideEffects", () => {
+    let consumed = 0;
+    function* gen() {
+      for (let i = 0; i < 3; i++) {
+        consumed++;
+        yield i;
+      }
+    }
+    const seq = Sequence(gen()).takeWhile((x) => x < 1);
+    assert.deepEqual(seq.toArray(), [0]);
+    assert.equal(consumed, 2);
   });
 });

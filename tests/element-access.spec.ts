@@ -1,4 +1,4 @@
-import { generateSequence, Sequence } from "../index.js";
+import { Sequence } from "../index.js";
 import { assert, describe, test } from "vitest";
 
 describe("elementAt", () => {

@@ -1,4 +1,4 @@
-import { generateSequence, Sequence } from "../index.js";
+import { Sequence } from "../index.js";
 import { assert, describe, test } from "vitest";
 
 describe("next", () => {
@@ -49,7 +49,7 @@ describe("throw", () => {
     while (true) {
       try {
         yield 42;
-      } catch (e) {
+      } catch (_e) {
         errored = true;
         yield 41;
       }
@@ -59,7 +59,7 @@ describe("throw", () => {
   test("throw", () => {
     const generator = gen();
     const seq = Sequence(generator);
-    let { value, done } = seq.next();
+    const { value, done } = seq.next();
     assert.equal(value, 42);
     assert.isFalse(done);
     const res = seq.throw(new Error());
@@ -69,14 +69,19 @@ describe("throw", () => {
   });
 });
 
-describe("generator", () => {
-  test("generator", () => {
+describe("return", () => {
+  test("return array", () => {
     const seq = Sequence([0, 1, 2]);
-    let i = 0;
-    for (const x of seq.generator) {
-      assert.equal(x, i);
-      i++;
-    }
+    const res = seq.return(41);
+    assert.equal(res.value, 41);
+    assert.isTrue(res.done);
+  });
+});
+
+describe("throw", () => {
+  test("throw array", () => {
+    const seq = Sequence([0, 1, 2]);
+    assert.throws(() => seq.throw(new Error("test")));
   });
 });
 
@@ -88,5 +93,58 @@ describe("Symbol.iterator", () => {
       assert.equal(x, i);
       i++;
     }
+  });
+
+  test("Symbol.dispose", () => {
+    const seq = Sequence([0, 1, 2]);
+    assert.equal(typeof seq[Symbol.dispose], "function");
+    seq[Symbol.dispose]!();
+  });
+
+  test("Symbol.dispose on plain generator", () => {
+    function* gen() {
+      yield 42;
+    }
+    const seq = Sequence(gen());
+    assert.equal(typeof seq[Symbol.dispose], "function");
+    seq[Symbol.dispose]!();
+  });
+
+  test("generatorBackedSequenceThrowsOnReIteration", () => {
+    function* gen() {
+      yield 1;
+      yield 2;
+    }
+    const seq = Sequence(gen());
+    assert.deepEqual(seq.toArray(), [1, 2]);
+    assert.throws(
+      () => seq.toArray(),
+      "Generator-based sequences can only be iterated once"
+    );
+  });
+
+  test("generatorBackedSequenceThrowsAfterExhaustion", () => {
+    function* gen() {
+      yield 1;
+      yield 2;
+      yield 3;
+    }
+    const seq = Sequence(gen());
+    seq.toArray();
+    assert.throws(
+      () => seq.toArray(),
+      "Generator-based sequences can only be iterated once"
+    );
+  });
+
+  test("generatorBackedSequenceAllowsPartialConsumption", () => {
+    function* gen() {
+      yield 1;
+      yield 2;
+      yield 3;
+    }
+    const seq = Sequence(gen());
+    assert.deepEqual(seq.next(), { value: 1, done: false });
+    assert.deepEqual(seq.toArray(), [2, 3]);
   });
 });

@@ -1,7 +1,23 @@
-import { generateSequence, Sequence } from "../index.js";
+import { Sequence } from "../index.js";
 import { assert, describe, test } from "vitest";
 
 describe("chunked", () => {
+  test("chunkedZero", () => {
+    const seq = Sequence([0, 1, 2, 3]);
+    assert.throw(
+      () => seq.chunked(0).toArray(),
+      "chunk size must be greater than zero"
+    );
+  });
+
+  test("chunkedNegative", () => {
+    const seq = Sequence([0, 1, 2, 3]);
+    assert.throw(
+      () => seq.chunked(-1).toArray(),
+      "chunk size must be greater than zero"
+    );
+  });
+
   test("chunkedEqualSize", () => {
     const seq = Sequence([0, 1, 2, 3]);
     const val = seq.chunked(2).toArray();
@@ -71,6 +87,12 @@ describe("flatMap", () => {
       .toArray();
     assert.deepEqual(val, [0, 3]);
   });
+
+  test("flatMapWithIterable", () => {
+    const seq = Sequence([1, 2]);
+    const val = seq.flatMap((x) => new Set([x, x + 1])).toArray();
+    assert.deepEqual(val, [1, 2, 2, 3]);
+  });
 });
 
 describe("flatMapTo", () => {
@@ -105,6 +127,14 @@ describe("flatMapTo", () => {
     const val = seq.flatMapTo(xs, (ys, i) => ys.slice(0, 1).map((x) => x + i));
     assert.deepEqual(val, [49, 0, 3]);
     assert.deepEqual(xs, [49, 0, 3]);
+  });
+
+  test("flatMapToWithIterable", () => {
+    const seq = Sequence([1, 2]);
+    const xs: number[] = [];
+    const val = seq.flatMapTo(xs, (x) => new Set([x, x + 1]));
+    assert.deepEqual(val, [1, 2, 2, 3]);
+    assert.deepEqual(xs, [1, 2, 2, 3]);
   });
 });
 
@@ -149,8 +179,8 @@ describe("map", () => {
       return 999;
     }
     const mapped = Sequence(gen()).map((x) => x * 2);
-    assert.deepEqual(mapped.generator.next(), { value: 2, done: false });
-    assert.deepEqual(mapped.generator.next(), { value: undefined, done: true });
+    assert.deepEqual(mapped.next(), { value: 2, done: false });
+    assert.deepEqual(mapped.next(), { value: undefined, done: true });
   });
 });
 
@@ -251,6 +281,22 @@ describe("plusElement", () => {
 });
 
 describe("windowed", () => {
+  test("windowedStepZero", () => {
+    const seq = Sequence([0, 1, 2, 3]);
+    assert.throw(
+      () => seq.windowed(2, 0).toArray(),
+      "step must be greater than zero"
+    );
+  });
+
+  test("windowedSizeZero", () => {
+    const seq = Sequence([0, 1, 2, 3]);
+    assert.throw(
+      () => seq.windowed(0).toArray(),
+      "window size must be greater than zero"
+    );
+  });
+
   test("windowed", () => {
     const seq = Sequence([0, 1, 2, 3, 4, 5]);
     const val = seq.windowed(3).toArray();
@@ -306,6 +352,12 @@ describe("windowed", () => {
     assert.deepEqual(val, [1, 3]);
   });
 
+  test("windowedPartialEmpty", () => {
+    const seq = Sequence<number>([]);
+    const val = seq.windowed(3, 1, true).toArray();
+    assert.deepEqual(val, []);
+  });
+
   test("windowedTransformWithIndex", () => {
     const seq = Sequence([0, 1, 2, 3, 4, 5]);
     const val = seq
@@ -316,7 +368,17 @@ describe("windowed", () => {
         (xs, i) => xs.reduce((acc, x) => acc + x + i, 0) / xs.length
       )
       .toArray();
-    assert.deepEqual(val, [3, 7]);
+    assert.deepEqual(val, [1, 4]);
+  });
+
+  test("windowedPartialWithTransformWithIndex", () => {
+    const seq = Sequence([1, 2, 3, 4, 5]);
+    const val = seq.windowed(3, 2, true, (xs, i) => [xs, i] as const).toArray();
+    assert.deepEqual(val, [
+      [[1, 2, 3], 0],
+      [[3, 4, 5], 1],
+      [[5], 2]
+    ]);
   });
 });
 
@@ -387,6 +449,23 @@ describe("zip", () => {
     const seq2 = Sequence([3, 4, 5]);
     const val = seq.zip(seq2).toArray();
     assert.deepEqual(val, []);
+  });
+
+  test("zipDoesNotOverconsume", () => {
+    function* gen() {
+      yield 3;
+      yield 4;
+      yield 5;
+    }
+    const seq = Sequence([0, 1]);
+    const seq2 = Sequence(gen());
+    const val = seq.zip(seq2).toArray();
+    assert.deepEqual(val, [
+      [0, 3],
+      [1, 4]
+    ]);
+    const remaining = seq2.toArray();
+    assert.deepEqual(remaining, [5]);
   });
 });
 

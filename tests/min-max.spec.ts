@@ -1,4 +1,4 @@
-import { generateSequence, Sequence } from "../index.js";
+import { Sequence } from "../index.js";
 import { assert, describe, test } from "vitest";
 
 describe("max", () => {
@@ -127,7 +127,7 @@ describe("maxOfOrNull", () => {
     assert.equal(val, 5);
   });
 
-  test("maxOfOrNull", () => {
+  test("maxOfOrNullWithIndex", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.maxOfOrNull((x, i) => x - 2 * i);
     assert.equal(val, 0);
@@ -147,7 +147,7 @@ describe("maxOfOrNull", () => {
 });
 
 describe("maxOfWith", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -156,21 +156,18 @@ describe("maxOfWith", () => {
   test("maxOfWith", () => {
     const seq = Sequence(["one", "four", "seven"]);
     const val = seq.maxOfWith(comp, (x) => x.length);
-    assert.equal(val, 3);
+    assert.equal(val, 5);
   });
 
   test("maxOfWithWithIndex", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.maxOfWith(comp, (x, i) => x - 2 * i);
-    assert.equal(val, -2);
+    assert.equal(val, 0);
   });
 
   test("maxOfWithEmpty", () => {
     const seq = Sequence<number[]>([]);
-    assert.throw(
-      seq.maxOfWith.bind(null, comp, (x) => x.length),
-      "Empty sequence"
-    );
+    assert.throw(() => seq.maxOfWith(comp, (x) => x.length), "Empty sequence");
   });
 
   test("maxOfWithMultiple", () => {
@@ -181,7 +178,7 @@ describe("maxOfWith", () => {
 });
 
 describe("maxOfWithOrNull", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -190,13 +187,13 @@ describe("maxOfWithOrNull", () => {
   test("maxOfWithOrNull", () => {
     const seq = Sequence(["one", "four", "seven"]);
     const val = seq.maxOfWithOrNull(comp, (x) => x.length);
-    assert.equal(val, 3);
+    assert.equal(val, 5);
   });
 
-  test("maxOfWithOrNull", () => {
+  test("maxOfWithOrNullWithIndex", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.maxOfWithOrNull(comp, (x, i) => x - 2 * i);
-    assert.equal(val, -2);
+    assert.equal(val, 0);
   });
 
   test("maxOfWithOrNullEmpty", () => {
@@ -233,7 +230,7 @@ describe("maxOrNull", () => {
 });
 
 describe("maxWith", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -242,7 +239,7 @@ describe("maxWith", () => {
   test("maxWith", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.maxWith(comp);
-    assert.equal(val, 0);
+    assert.equal(val, 2);
   });
 
   test("maxWithEmpty", () => {
@@ -253,18 +250,18 @@ describe("maxWith", () => {
   test("maxWithMultiple", () => {
     const seq = Sequence([0, 1, 2, 0]);
     const val = seq.maxWith(comp);
-    assert.equal(val, 0);
+    assert.equal(val, 2);
   });
 
   test("maxWithSwap", () => {
     const seq = Sequence([0, 1, 2, -1]);
     const val = seq.maxWith(comp);
-    assert.equal(val, -1);
+    assert.equal(val, 2);
   });
 });
 
 describe("maxWithOrNull", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -273,7 +270,7 @@ describe("maxWithOrNull", () => {
   test("maxWithOrNull", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.maxWithOrNull(comp);
-    assert.equal(val, 0);
+    assert.equal(val, 2);
   });
 
   test("maxWithOrNullEmpty", () => {
@@ -285,13 +282,13 @@ describe("maxWithOrNull", () => {
   test("maxWithOrNullMultiple", () => {
     const seq = Sequence([0, 1, 2, 0]);
     const val = seq.maxWithOrNull(comp);
-    assert.equal(val, 0);
+    assert.equal(val, 2);
   });
 
   test("maxWithOrNullSwap", () => {
     const seq = Sequence([0, 1, 2, -1]);
     const val = seq.maxWithOrNull(comp);
-    assert.equal(val, -1);
+    assert.equal(val, 2);
   });
 });
 
@@ -367,7 +364,7 @@ describe("minByOrNull", () => {
     assert.equal(val, 2);
   });
 
-  test("minByOrNull", () => {
+  test("minByOrNullWithIndex", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.minByOrNull((x, i) => x - 2 * i);
     assert.equal(val, 2);
@@ -447,7 +444,7 @@ describe("minOfOrNull", () => {
 });
 
 describe("minOfWith", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -456,21 +453,18 @@ describe("minOfWith", () => {
   test("minOfWith", () => {
     const seq = Sequence(["one", "four", "seven"]);
     const val = seq.minOfWith(comp, (x) => x.length);
-    assert.equal(val, 5);
+    assert.equal(val, 3);
   });
 
   test("minOfWithWithIndex", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.minOfWith(comp, (x, i) => x - 2 * i);
-    assert.equal(val, 0);
+    assert.equal(val, -2);
   });
 
   test("minOfWithEmpty", () => {
     const seq = Sequence<number[]>([]);
-    assert.throw(
-      seq.minOfWith.bind(null, comp, (x) => x.length),
-      "Empty sequence"
-    );
+    assert.throw(() => seq.minOfWith(comp, (x) => x.length), "Empty sequence");
   });
 
   test("minOfWithMultiple", () => {
@@ -481,7 +475,7 @@ describe("minOfWith", () => {
 });
 
 describe("minOfWithOrNull", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -490,13 +484,13 @@ describe("minOfWithOrNull", () => {
   test("minOfWithOrNull", () => {
     const seq = Sequence(["one", "four", "seven"]);
     const val = seq.minOfWithOrNull(comp, (x) => x.length);
-    assert.equal(val, 5);
+    assert.equal(val, 3);
   });
 
   test("minOfWithOrNullWithIndex", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.minOfWithOrNull(comp, (x, i) => x - 2 * i);
-    assert.equal(val, 0);
+    assert.equal(val, -2);
   });
 
   test("minOfWithOrNullEmpty", () => {
@@ -539,7 +533,7 @@ describe("minOrNull", () => {
 });
 
 describe("minWith", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number | number[], b: number | number[]) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -548,7 +542,7 @@ describe("minWith", () => {
   test("minWith", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.minWith(comp);
-    assert.equal(val, 2);
+    assert.equal(val, 0);
   });
 
   test("minWithEmpty", () => {
@@ -559,12 +553,18 @@ describe("minWith", () => {
   test("minWithMultiple", () => {
     const seq = Sequence([0, 1, 2, 0]);
     const val = seq.minWith(comp);
-    assert.equal(val, 2);
+    assert.equal(val, 0);
+  });
+
+  test("minWithSwap", () => {
+    const seq = Sequence([0, 1, 2, -1]);
+    const val = seq.minWith(comp);
+    assert.equal(val, -1);
   });
 });
 
 describe("minWithOrNull", () => {
-  const comp = (a: any, b: any) => {
+  const comp = (a: number[] | number, b: number[] | number) => {
     if (a > b) return 1;
     if (a === b) return 0;
     return -1;
@@ -573,7 +573,7 @@ describe("minWithOrNull", () => {
   test("minWithOrNull", () => {
     const seq = Sequence([0, 1, 2]);
     const val = seq.minWithOrNull(comp);
-    assert.equal(val, 2);
+    assert.equal(val, 0);
   });
 
   test("minWithOrNullEmpty", () => {
@@ -585,6 +585,12 @@ describe("minWithOrNull", () => {
   test("minWithOrNullMultiple", () => {
     const seq = Sequence([0, 1, 2, 0]);
     const val = seq.minWithOrNull(comp);
-    assert.equal(val, 2);
+    assert.equal(val, 0);
+  });
+
+  test("minWithOrNullSwap", () => {
+    const seq = Sequence([0, 1, 2, -1]);
+    const val = seq.minWithOrNull(comp);
+    assert.equal(val, -1);
   });
 });

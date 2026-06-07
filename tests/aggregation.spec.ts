@@ -1,4 +1,4 @@
-import { generateSequence, Sequence } from "../index.js";
+import { Sequence } from "../index.js";
 import { assert, describe, test } from "vitest";
 
 describe("average", () => {
@@ -205,6 +205,11 @@ describe("sum", () => {
     const val = seq.sum();
     assert.equal(val, 0);
   });
+
+  test("sumString", () => {
+    const seq = Sequence(["hello", "world"]);
+    assert.throw(seq.sum, "Non-numeric sequence");
+  });
 });
 
 describe("sumOf", () => {
@@ -224,5 +229,10 @@ describe("sumOf", () => {
     const seq = Sequence<number>([]);
     const val = seq.sumOf((x) => x * 2);
     assert.equal(val, 0);
+  });
+
+  test("sumOfString", () => {
+    const seq = Sequence([0, 1, 2]);
+    assert.throw(() => seq.sumOf(() => "hello"), "Non-numeric sequence");
   });
 });

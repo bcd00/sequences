@@ -1,3 +1,5 @@
+type InnerNest<T> = T extends Iterable<infer U> ? U : never;
+
 function* map<T, U>(gn: Generator<T>, fn: (x: T, i: number) => U) {
   let i = 0;
   while (true) {
@@ -5,7 +7,7 @@ function* map<T, U>(gn: Generator<T>, fn: (x: T, i: number) => U) {
     if (!done) {
       yield fn(value, i);
     } else {
-      return fn(value, i);
+      return;
     }
     i++;
   }
@@ -31,25 +33,21 @@ function* take<T>(gn: Generator<T>, n: number) {
     if (!done) {
       yield value;
     } else {
-      return value;
+      return;
     }
     i++;
   }
 }
 
 function* takeWhile<T>(gn: Generator<T>, fn: (x: T, i: number) => boolean) {
-  let broken = false;
   let i = 0;
   while (true) {
     const { value, done } = gn.next();
     if (done) return;
     if (!fn(value, i)) {
-      broken = true;
+      return;
     }
-
-    if (!broken) {
-      yield value;
-    }
+    yield value;
     i++;
   }
 }
@@ -59,6 +57,9 @@ function* chunked<T, U>(
   n: number,
   fn: (x: T[], i: number) => U
 ) {
+  if (n <= 0) {
+    throw new Error("chunk size must be greater than zero");
+  }
   let j = 0;
   while (true) {
     const ls = [];
@@ -66,7 +67,7 @@ function* chunked<T, U>(
       const { value, done } = gn.next();
       if (done) {
         if (ls.length > 0) {
-          yield fn(ls, i);
+          yield fn(ls, j);
         }
         return;
       } else {
@@ -79,31 +80,33 @@ function* chunked<T, U>(
 }
 
 function* distinct<T>(gn: Generator<T>) {
-  const seen: T[] = [];
+  const seen = new Set<T>();
   while (true) {
     const { value, done } = gn.next();
 
-    if (!seen.includes(value)) {
-      seen.push(value);
+    if (!seen.has(value)) {
+      seen.add(value);
       if (done) {
-        return value;
+        return;
       } else {
         yield value;
       }
+    } else {
+      if (done) return;
     }
   }
 }
 
 function* distinctBy<T, U>(gn: Generator<T>, fn: (x: T, i: number) => U) {
-  const seen: U[] = [];
+  const seen = new Set<U>();
   let i = 0;
   while (true) {
     const { value, done } = gn.next();
     if (done) return;
     const transform = fn(value, i);
 
-    if (!seen.includes(transform)) {
-      seen.push(transform);
+    if (!seen.has(transform)) {
+      seen.add(transform);
       yield value;
     }
     i++;
@@ -114,12 +117,9 @@ function* drop<T>(gn: Generator<T>, n: number) {
   let i = 0;
   while (true) {
     const { value, done } = gn.next();
+    if (done) return;
     if (i >= n) {
-      if (!done) {
-        yield value;
-      } else {
-        return value;
-      }
+      yield value;
     }
     i++;
   }
@@ -142,12 +142,21 @@ function* dropWhile<T>(gn: Generator<T>, fn: (x: T, i: number) => boolean) {
   }
 }
 
-function* flatMap<T, U>(gn: Generator<T>, fn: (x: T, i: number) => U[]) {
+function* flatMap<T, U>(
+  gn: Generator<T>,
+  fn: (x: T, i: number) => Iterable<U>
+) {
   let i = 0;
   while (true) {
     const { value, done } = gn.next();
     if (done) return;
     const transform = fn(value, i);
+    if (
+      typeof (transform as unknown as Record<typeof Symbol.iterator, unknown>)[
+        Symbol.iterator
+      ] !== "function"
+    )
+      throw new Error("transform is not iterable");
 
     for (const elem of transform) {
       yield elem;
@@ -160,7 +169,11 @@ function* flatten<T>(gn: Generator<T[] | Generator<T>>) {
   while (true) {
     const { value, done } = gn.next();
     if (done) return;
-    if (typeof (value as any)[Symbol.iterator] !== "function")
+    if (
+      typeof (value as unknown as Record<typeof Symbol.iterator, unknown>)[
+        Symbol.iterator
+      ] !== "function"
+    )
       throw new Error("Item is not iterable");
     for (const elem of value) {
       yield elem;
@@ -225,18 +238,27 @@ function* windowed<T, U>(
   partialWindows = false,
   transform: (x: T[], i: number) => U = (x) => x as unknown as U
 ) {
+  if (size <= 0) {
+    throw new Error("window size must be greater than zero");
+  }
+  if (step <= 0) {
+    throw new Error("step must be greater than zero");
+  }
   let ls: T[] = [];
-  let i = 0;
+  let windowIndex = 0;
   while (true) {
     const { value, done } = gn.next();
     if (done) {
       if (partialWindows) {
         while (ls.length > step) {
-          yield transform(ls, i);
+          yield transform(ls, windowIndex);
           ls = ls.slice(step);
+          windowIndex++;
         }
 
-        yield transform(ls, i);
+        if (ls.length > 0) {
+          yield transform(ls, windowIndex);
+        }
       }
       return;
     }
@@ -244,10 +266,10 @@ function* windowed<T, U>(
     ls.push(value);
 
     if (ls.length === size) {
-      yield transform(ls, i);
+      yield transform(ls, windowIndex);
       ls = ls.slice(step);
+      windowIndex++;
     }
-    i++;
   }
 }
 
@@ -269,8 +291,9 @@ function* zip<T, U, R>(
   let i = 0;
   while (true) {
     const one = gn.next();
+    if (one.done) return;
     const two = other.next();
-    if (one.done || two.done) return;
+    if (two.done) return;
     yield fn(one.value, two.value, i);
     i++;
   }
@@ -300,6 +323,7 @@ function* _generateSequence<T>(
   } else {
     cur = seed;
   }
+  yield cur;
   let i = 0;
   while (true) {
     cur = fn(cur, i);
@@ -309,61 +333,98 @@ function* _generateSequence<T>(
 }
 
 type Functions<T> = {
+  /** Returns `true` if every element satisfies the predicate. */
   all: (fn: (x: T, i: number) => boolean) => boolean;
+  /** Returns `true` if at least one element satisfies the predicate. */
   any: (fn: (x: T, i: number) => boolean) => boolean;
+  /** Builds a {@link Map} from each element's transformed `[key, value]` pair. */
   associate: <U, V>(fn: (x: T, i: number) => [U, V]) => Map<U, V>;
+  /** Builds a {@link Map} using a key selector; the element itself is the value unless a second selector is provided. */
   associateBy: <U, V>(
     fn: (x: T, i: number) => U,
     fn2?: (x: T, i: number) => V
   ) => Map<U, V>;
+  /** Populates an existing {@link Map} using a key selector. */
   associateByTo: <U, V>(
     map: Map<U, V>,
     fn: (x: T, i: number) => U,
     fn2?: (x: T, i: number) => V
   ) => Map<U, V>;
+  /** Populates an existing {@link Map} from each element's transformed `[key, value]` pair. */
   associateTo: <U, V>(
     map: Map<U, V>,
     fn: (x: T, i: number) => [U, V]
   ) => Map<U, V>;
+  /** Builds a {@link Map} where each element is the key and the selector produces the value. */
   associateWith: <V>(fn: (x: T, i: number) => V) => Map<T, V>;
+  /** Populates an existing {@link Map} where each element is the key. */
   associateWithTo: <V>(map: Map<T, V>, fn: (x: T, i: number) => V) => Map<T, V>;
+  /** Returns the arithmetic mean. Throws if the sequence is empty or contains non-numeric values. */
   average: () => number;
+  /** Groups elements into chunks of size `n`, optionally transforming each chunk. */
   chunked: <V>(n: number, fn?: (x: T[], i: number) => V) => Functions<V>;
+  /** Returns `true` if the sequence contains the given element (strict equality). */
   contains: (x: T) => boolean;
+  /** Returns the number of elements matching the predicate, or the total count if no predicate is given. */
   count: (fn?: (y: T, i: number) => boolean) => number;
+  /** Returns a sequence with duplicate elements removed. */
   distinct: () => Functions<T>;
+  /** Returns a sequence with duplicates removed based on a selector function. */
   distinctBy: <V>(fn: (x: T, i: number) => V) => Functions<T>;
+  /** Returns a sequence skipping the first `n` elements. Throws if `n` is negative. */
   drop: (n: number) => Functions<T>;
+  /** Returns a sequence skipping elements while the predicate is satisfied. */
   dropWhile: (fn: (x: T, i: number) => boolean) => Functions<T>;
+  /** Returns the element at the given index. Throws if out of bounds. */
   elementAt: (i: number) => T;
+  /** Returns the element at the given index, or `defaultValue` if out of bounds. */
   elementAtOrElse: (i: number, defaultValue: T) => T;
+  /** Returns the element at the given index, or `null` if out of bounds. */
   elementAtOrNull: (i: number) => T | null;
+  /** Returns a sequence of elements satisfying the predicate. */
   filter: (fn: (x: T, i: number) => boolean) => Functions<T>;
+  /** Returns a sequence of elements that do **not** satisfy the predicate. */
   filterNot: (fn: (x: T, i: number) => boolean) => Functions<T>;
+  /** Appends elements that do **not** satisfy the predicate into the given array. */
   filterNotTo: (xs: T[], fn: (x: T, i: number) => boolean) => T[];
+  /** Appends elements satisfying the predicate into the given array. */
   filterTo: (xs: T[], fn: (x: T, i: number) => boolean) => T[];
+  /** Returns the first element matching the predicate, or `null` if none match. */
   find: (fn: (x: T, i: number) => boolean) => T | null;
+  /** Returns the last element matching the predicate, or `null` if none match. */
   findLast: (fn: (x: T, i: number) => boolean) => T | null;
+  /** Returns the first element matching the predicate. Throws if the sequence is empty or no match is found. */
   first: (fn?: (x: T, i: number) => boolean) => T;
+  /** Returns the first element matching the predicate, or `null` if none match. */
   firstOrNull: (fn?: (x: T, i: number) => boolean) => T | null;
-  flatMap: <U>(fn: (x: T, i: number) => U[]) => Functions<U>;
-  flatMapTo: <U>(xs: U[], fn: (x: T, i: number) => U[]) => U[];
+  /** Maps each element to an iterable and flattens the result into a single sequence. */
+  flatMap: <U>(fn: (x: T, i: number) => Iterable<U>) => Functions<U>;
+  /** Maps each element to an iterable and appends all elements to the given array. */
+  flatMapTo: <U>(xs: U[], fn: (x: T, i: number) => Iterable<U>) => U[];
+  /** Flattens a sequence of arrays or generators into a single-level sequence. */
   flatten: () => Functions<InnerNest<T>>;
+  /** Accumulates a value starting from `initial`, applying the function left-to-right. */
   fold: <U>(initial: U, fn: (initial: U, x: T, i: number) => U) => U;
+  /** Performs the given action on each element. Consumes the sequence. */
   forEach: (fn: (x: T, i: number) => void) => void;
-  generator: Generator<T>;
+  /** Groups elements by a key selector. An optional value transform can map the stored values. */
   groupBy: <U, V>(
     fn: (x: T, i: number) => U,
     fn2?: (x: T, i: number) => V
   ) => Map<U, V[]>;
+  /** Populates an existing {@link Map} by grouping elements with a key selector. */
   groupByTo: <U, V>(
     xs: Map<U, V[]>,
     fn: (x: T, i: number) => U,
     fn2?: (x: T, i: number) => V
   ) => Map<U, V[]>;
+  /** Returns the index of the first occurrence of the element, or `-1` if not found. */
   indexOf: (elem: T) => number;
+  /** Returns the index of the first element satisfying the predicate, or `-1` if none match. */
   indexOfFirst: (fn: (x: T, i: number) => boolean) => number;
+  /** Returns the index of the last element satisfying the predicate, or `-1` if none match. */
   indexOfLast: (fn: (x: T, i: number) => boolean) => number;
+  /** Appends elements to a string buffer, separated by `separator`. Supports prefix, postfix, limit, and truncation. */
   joinTo: <V>(
     buffer: string,
     separator?: string,
@@ -373,6 +434,7 @@ type Functions<T> = {
     truncated?: string,
     transform?: (x: T, i: number) => V
   ) => string;
+  /** Returns a string of all elements, separated by `separator`. Supports prefix, postfix, limit, and truncation. */
   joinToString: <V>(
     separator?: string,
     prefix?: string,
@@ -381,98 +443,178 @@ type Functions<T> = {
     truncated?: string,
     transform?: (x: T, i: number) => V
   ) => string;
+  /** Returns the last element matching the predicate. Throws if the sequence is empty or no match is found. */
   last: (fn?: (x: T, i: number) => boolean) => T;
+  /** Returns the index of the last occurrence of the element, or `-1` if not found. */
   lastIndexOf: (elem: T) => number;
+  /** Returns the last element matching the predicate, or `null` if none match. */
   lastOrNull: (fn?: (x: T, i: number) => boolean) => T | null;
+  /** Returns a sequence with each element transformed by the given function. */
   map: <V>(fn: (x: T, i: number) => V) => Functions<V>;
+  /** Appends transformed elements to the given array. */
   mapTo: <V>(xs: V[], fn: (x: T, i: number) => V) => V[];
+  /** Returns the largest element according to natural ordering. Throws if empty. */
   max: () => T;
+  /** Returns the element with the largest value of the selector function. Throws if empty. */
   maxBy: <V>(fn: (x: T, i: number) => V) => T;
+  /** Returns the element with the largest selector value, or `null` if empty. */
   maxByOrNull: <V>(fn: (x: T, i: number) => V) => T | null;
+  /** Returns the largest value produced by the selector. Throws if empty. */
   maxOf: <U>(fn: (x: T, i: number) => U) => U;
+  /** Returns the largest value produced by the selector, or `null` if empty. */
   maxOfOrNull: <U>(fn: (x: T, i: number) => U) => U | null;
+  /** Returns the largest value produced by the selector using a custom comparator. Throws if empty. */
   maxOfWith: <U>(
     comp: (a: U, b: U) => 0 | 1 | -1,
     fn: (x: T, i: number) => U
   ) => U;
+  /** Returns the largest value produced by the selector using a custom comparator, or `null` if empty. */
   maxOfWithOrNull: <U>(
     comp: (a: U, b: U) => 0 | 1 | -1,
     fn: (x: T, i: number) => U
   ) => U | null;
+  /** Returns the largest element according to natural ordering, or `null` if empty. */
   maxOrNull: () => T | null;
+  /** Returns the largest element according to a custom comparator. Throws if empty. */
   maxWith: (comp: (a: T, b: T) => 0 | 1 | -1) => T;
+  /** Returns the largest element according to a custom comparator, or `null` if empty. */
   maxWithOrNull: (comp: (a: T, b: T) => 0 | 1 | -1) => T | null;
+  /** Returns the smallest element according to natural ordering. Throws if empty. */
   min: () => T;
+  /** Returns the element with the smallest value of the selector function. Throws if empty. */
   minBy: <V>(fn: (x: T, i: number) => V) => T;
+  /** Returns the element with the smallest selector value, or `null` if empty. */
   minByOrNull: <V>(fn: (x: T, i: number) => V) => T | null;
+  /** Returns the smallest value produced by the selector. Throws if empty. */
   minOf: <U>(fn: (x: T, i: number) => U) => U;
+  /** Returns the smallest value produced by the selector, or `null` if empty. */
   minOfOrNull: <U>(fn: (x: T, i: number) => U) => U | null;
+  /** Returns the smallest value produced by the selector using a custom comparator. Throws if empty. */
   minOfWith: <U>(
     comp: (a: U, b: U) => 0 | 1 | -1,
     fn: (x: T, i: number) => U
   ) => U;
+  /** Returns the smallest value produced by the selector using a custom comparator, or `null` if empty. */
   minOfWithOrNull: <U>(
     comp: (a: U, b: U) => 0 | 1 | -1,
     fn: (x: T, i: number) => U
   ) => U | null;
+  /** Returns the smallest element according to natural ordering, or `null` if empty. */
   minOrNull: () => T | null;
+  /** Returns a sequence with all occurrences of the given elements removed. */
   minus: (elements: T[]) => Functions<T>;
+  /** Returns a sequence with the first occurrence of the given element removed. */
   minusElement: (elem: T) => Functions<T>;
+  /** Returns the smallest element according to a custom comparator. Throws if empty. */
   minWith: (comp: (a: T, b: T) => 0 | 1 | -1) => T;
+  /** Returns the smallest element according to a custom comparator, or `null` if empty. */
   minWithOrNull: (comp: (a: T, b: T) => 0 | 1 | -1) => T | null;
+  /** Returns the next iterator result from the underlying generator. */
   next: () => IteratorResult<T>;
+  /** Returns `true` if no elements satisfy the predicate (or if the sequence is empty when no predicate is given). */
   none: (fn?: (x: T, i: number) => boolean) => boolean;
-  onEach: (fn: (x: T, i: number) => T) => Functions<T>;
+  /** Performs the given action on each element and returns the original sequence. */
+  onEach: (fn: (x: T, i: number) => void) => Functions<T>;
+  /** Splits elements into a pair of arrays: those that satisfy the predicate and those that do not. */
   partition: (fn: (x: T, i: number) => boolean) => readonly [T[], T[]];
+  /** Returns a sequence with the given elements appended. */
   plus: (elements: Generator<T> | T[]) => Functions<T>;
+  /** Returns a sequence with the given element appended. */
   plusElement: (elem: T) => Functions<T>;
+  /** Accumulates a value using the first element as the initial accumulator. Throws if empty. */
   reduce: (fn: (acc: T, x: T, i: number) => T) => T;
+  /** Accumulates a value using the first element as the initial accumulator, or `null` if empty. */
   reduceOrNull: (fn: (acc: T, x: T, i: number) => T) => T | null;
+  /** Delegates to the underlying generator's `return` method. */
   return: Generator<T>["return"];
+  /** Returns a sequence of intermediate fold results, starting with `initial`. */
   runningFold: <U>(
     initial: U,
     fn: (initial: U, x: T, i: number) => U
   ) => Functions<U>;
+  /** Returns a sequence of intermediate reduce results. */
   runningReduce: (fn: (acc: T, x: T, i: number) => T) => Functions<T>;
+  /** Alias for {@link runningFold}. */
   scan: <U>(initial: U, fn: (initial: U, x: T, i: number) => U) => Functions<U>;
+  /** Returns the single element matching the predicate. Throws if zero or multiple matches. */
   single: (fn?: (x: T, i: number) => boolean) => T;
+  /** Returns the single element matching the predicate, or `null` if zero or multiple matches. */
   singleOrNull: (fn?: (x: T, i: number) => boolean) => T | null;
+  /** Returns the sum of all numeric elements. */
   sum: () => number;
+  /** Returns the sum of values returned by the selector function. */
   sumOf: <U>(fn: (x: T, i: number) => U) => number;
+  /** Returns a sequence of the first `n` elements. Throws if `n` is negative. */
   take: (n: number) => Functions<T>;
+  /** Returns a sequence of elements while the predicate is satisfied. */
   takeWhile: (fn: (x: T, i: number) => boolean) => Functions<T>;
+  /** Delegates to the underlying generator's `throw` method. */
   throw: Generator<T>["throw"];
+  /** Collects all elements into an array. */
   toArray: () => T[];
+  /** Collects all elements into a {@link Set}. */
   toSet: () => Set<T>;
-  unzip: <U>() => readonly [U[], U[]];
+  /** Splits a sequence of pairs into a pair of arrays. */
+  unzip: T extends readonly [infer A, infer B]
+    ? () => [A[], B[]]
+    : T extends readonly (infer A)[]
+      ? () => [A[], A[]]
+      : () => [unknown[], unknown[]];
+  /** Returns a sequence of sliding windows of the given size. Supports custom step and partial windows. */
   windowed: <U>(
     size: number,
     step?: number,
     partialWindows?: boolean,
     transform?: (x: T[], i: number) => U
   ) => Functions<U>;
+  /** Returns a sequence of `{ value, index }` objects. */
   withIndex: () => Functions<{ value: T; index: number }>;
+  /** Returns a sequence of pairs with another generator, optionally applying a transform. */
   zip: <R, U>(
     other: Generator<U>,
     fn?: (a: T, b: U, i: number) => R
   ) => Functions<R>;
+  /** Returns a sequence of adjacent pairs, optionally applying a transform. */
   zipWithNext: <R>(fn?: (a: T, b: T, i: number) => R) => Functions<R>;
+  /** Returns the underlying generator for use in `for...of` loops. */
   [Symbol.iterator]: () => Generator<T>;
+  [Symbol.dispose]: () => void;
 };
+
+function wrapGenerator<T>(gn: Generator<T>): Generator<T> {
+  let exhausted = false;
+  return {
+    next: () => {
+      const result = gn.next();
+      if (result.done) {
+        exhausted = true;
+      }
+      return result;
+    },
+    return: (value?: T) => gn.return(value as Parameters<typeof gn.return>[0]),
+    throw: (e?: unknown) => gn.throw(e),
+    [Symbol.iterator]() {
+      if (exhausted) {
+        throw new Error("Generator-based sequences can only be iterated once");
+      }
+      return this;
+    },
+    [Symbol.dispose]: () => {
+      gn[Symbol.dispose]?.();
+    }
+  } as Generator<T>;
+}
 
 export const generateSequence = <T>(
   seed: T | (() => T),
   fn: (x: T, i: number) => T
 ) => Sequence(_generateSequence(seed, fn));
 
-export function Sequence<T>(this: any, it: Generator<T> | T[]) {
-  let generator: Generator<T>;
-
-  if (Array.isArray(it)) {
-    generator = arrToSequence(it);
-  } else {
-    generator = it;
-  }
+export function Sequence<T>(this: void, it: Generator<T> | T[]) {
+  const isArray = Array.isArray(it);
+  const generator: Generator<T> = isArray
+    ? arrToSequence(it)
+    : wrapGenerator(it);
 
   const fns: Functions<T> = {
     all: (fn) => {
@@ -568,6 +710,8 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         count++;
       }
 
+      if (count === 0) throw new Error("Empty sequence");
+
       return avg / count;
     },
     chunked: <V>(n: number, fn = (x: T[], _i: number) => x as unknown as V) => {
@@ -591,23 +735,13 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       }
       return count;
     },
-    distinct: () => {
-      generator = distinct(generator);
-      return fns;
-    },
-    distinctBy: (fn) => {
-      generator = distinctBy(generator, fn);
-      return fns;
-    },
+    distinct: () => Sequence(distinct(generator)),
+    distinctBy: (fn) => Sequence(distinctBy(generator, fn)),
     drop: (n) => {
       if (n < 0) throw new Error("Negative drop size");
-      generator = drop(generator, n);
-      return fns;
+      return Sequence(drop(generator, n));
     },
-    dropWhile: (fn) => {
-      generator = dropWhile(generator, fn);
-      return fns;
-    },
+    dropWhile: (fn) => Sequence(dropWhile(generator, fn)),
     elementAt: (i) => {
       let j = 0;
       for (const x of generator) {
@@ -632,26 +766,26 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       }
       return null;
     },
-    filter: (fn) => {
-      generator = filter(generator, fn);
-      return fns;
-    },
-    filterNot: (fn) => {
-      generator = filter(generator, (x, i) => !fn(x, i));
-      return fns;
-    },
+    filter: (fn) => Sequence(filter(generator, fn)),
+    filterNot: (fn) => Sequence(filter(generator, (x, i) => !fn(x, i))),
     filterNotTo: (xs, fn) => {
-      generator = filter(generator, (x, i) => !fn(x, i));
+      let i = 0;
       for (const x of generator) {
-        xs.push(x);
+        if (!fn(x, i)) {
+          xs.push(x);
+        }
+        i++;
       }
 
       return xs;
     },
     filterTo: (xs, fn) => {
-      generator = filter(generator, fn);
+      let i = 0;
       for (const x of generator) {
-        xs.push(x);
+        if (fn(x, i)) {
+          xs.push(x);
+        }
+        i++;
       }
 
       return xs;
@@ -677,27 +811,41 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       return found;
     },
     first: (fn = () => true) => {
-      generator = dropWhile(generator, (x, i) => !fn(x, i));
-      const { value, done } = generator.next();
-
-      if (done) throw new Error("Empty sequence");
-      return value;
+      let i = 0;
+      while (true) {
+        const { value, done } = generator.next();
+        if (done) throw new Error("Empty sequence");
+        if (fn(value, i)) return value;
+        i++;
+      }
     },
     firstOrNull: (fn = () => true) => {
-      generator = dropWhile(generator, (x, i) => !fn(x, i));
-      const { value, done } = generator.next();
-
-      if (done) return null;
-      return value;
+      let i = 0;
+      while (true) {
+        const { value, done } = generator.next();
+        if (done) return null;
+        if (fn(value, i)) return value;
+        i++;
+      }
     },
     flatMap: (fn) => {
       const gn = flatMap(generator, fn);
       return Sequence(gn);
     },
     flatMapTo: (xs, fn) => {
-      const gn = flatMap(generator, fn);
-      for (const x of gn) {
-        xs.push(x);
+      let i = 0;
+      for (const x of generator) {
+        const transform = fn(x, i);
+        if (
+          typeof (
+            transform as unknown as Record<typeof Symbol.iterator, unknown>
+          )[Symbol.iterator] !== "function"
+        )
+          throw new Error("transform is not iterable");
+        for (const elem of transform) {
+          xs.push(elem);
+        }
+        i++;
       }
 
       return xs;
@@ -719,7 +867,6 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         i++;
       }
     },
-    generator: generator,
     groupBy: <U, V>(
       fn: (x: T, i: number) => U,
       fn2: (x: T, i: number) => V = (x) => x as unknown as V
@@ -733,8 +880,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       for (const x of generator) {
         const key = fn(x, i);
         if (xs.has(key)) {
-          const y = xs.get(key)!;
-          xs.set(key, [...y, fn2(x, i)]);
+          xs.get(key)!.push(fn2(x, i));
         } else {
           xs.set(key, [fn2(x, i)]);
         }
@@ -840,9 +986,10 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       return Sequence(gn);
     },
     mapTo: (xs, fn) => {
-      const gn = map(generator, fn);
-      for (const x of gn) {
-        xs.push(x);
+      let i = 0;
+      for (const x of generator) {
+        xs.push(fn(x, i));
+        i++;
       }
       return xs;
     },
@@ -924,7 +1071,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       return max!;
     },
     maxOfOrNull: <U>(fn: (x: T, i: number) => U) => {
-      let max: U | null = null;
+      let max: U | undefined = undefined;
       let i = 0;
 
       for (const x of generator) {
@@ -939,7 +1086,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         i++;
       }
 
-      return max;
+      return i === 0 ? null : max!;
     },
     maxOfWith: <U>(
       comp: (a: U, b: U) => 0 | 1 | -1,
@@ -961,7 +1108,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
           max = fn(x, i);
         } else {
           const transform = fn(x, i);
-          if (comp(max!, transform) === 1) {
+          if (comp(max!, transform) === -1) {
             max = transform;
           }
         }
@@ -995,7 +1142,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         if (i === 0) {
           max = x;
         } else {
-          if (comp(max!, x) === 1) {
+          if (comp(max!, x) === -1) {
             max = x;
           }
         }
@@ -1014,7 +1161,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         if (i === 0) {
           max = x;
         } else {
-          if (comp(max!, x) === 1) {
+          if (comp(max!, x) === -1) {
             max = x;
           }
         }
@@ -1101,7 +1248,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       return min!;
     },
     minOfOrNull: <U>(fn: (x: T, i: number) => U) => {
-      let min: U | null = null;
+      let min: U | undefined = undefined;
       let i = 0;
 
       for (const x of generator) {
@@ -1116,12 +1263,9 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         i++;
       }
 
-      return min;
+      return i === 0 ? null : min!;
     },
-    minOfWith: <U>(
-      comp: (a: U, b: U) => 0 | 1 | -1,
-      fn: (x: T, i: number) => U
-    ) => {
+    minOfWith: (comp, fn) => {
       const res = fns.minOfWithOrNull(comp, fn);
       if (res === null) throw new Error("Empty sequence");
       return res;
@@ -1138,7 +1282,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
           min = fn(x, i);
         } else {
           const transform = fn(x, i);
-          if (comp(min!, transform) === -1) {
+          if (comp(min!, transform) === 1) {
             min = transform;
           }
         }
@@ -1165,19 +1309,24 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       return min;
     },
     minus: (elements) => {
-      generator = filter(generator, (x) => !elements.includes(x));
-      return fns;
+      const set = new Set(elements);
+      return Sequence(filter(generator, (x) => !set.has(x)));
     },
     minusElement: (elem) => {
-      let found = false;
-      generator = filter(generator, (x) => {
-        if (x === elem && !found) {
-          found = true;
-          return false;
-        }
-        return true;
-      });
-      return fns;
+      return Sequence(
+        (function* () {
+          let found = false;
+          while (true) {
+            const { value, done } = generator.next();
+            if (done) return;
+            if (value === elem && !found) {
+              found = true;
+            } else {
+              yield value;
+            }
+          }
+        })()
+      );
     },
     minWith: (comp) => {
       let min = undefined;
@@ -1187,7 +1336,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         if (i === 0) {
           min = x;
         } else {
-          if (comp(min!, x) === -1) {
+          if (comp(min!, x) === 1) {
             min = x;
           }
         }
@@ -1206,7 +1355,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         if (i === 0) {
           min = x;
         } else {
-          if (comp(min!, x) === -1) {
+          if (comp(min!, x) === 1) {
             min = x;
           }
         }
@@ -1224,10 +1373,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       }
       return true;
     },
-    onEach: (fn) => {
-      generator = onEach(generator, fn);
-      return fns;
-    },
+    onEach: (fn) => Sequence(onEach(generator, fn)),
     partition: (fn) => {
       const ts = [];
       const fs = [];
@@ -1244,14 +1390,8 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
 
       return [ts, fs] as const;
     },
-    plus: (elements) => {
-      generator = plus(generator, elements);
-      return fns;
-    },
-    plusElement: (elem) => {
-      generator = plus(generator, [elem]);
-      return fns;
-    },
+    plus: (elements) => Sequence(plus(generator, elements)),
+    plusElement: (elem) => Sequence(plus(generator, [elem])),
     reduce: (fn) => {
       let acc: T | undefined = undefined;
       let i = 0;
@@ -1269,7 +1409,7 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       return acc!;
     },
     reduceOrNull: (fn) => {
-      let acc: T | null = null;
+      let acc: T | undefined = undefined;
       let i = 0;
       for (const x of generator) {
         if (i === 0) {
@@ -1280,17 +1420,14 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
         i++;
       }
 
-      return acc;
+      return i === 0 ? null : acc!;
     },
     return: generator.return.bind(generator),
     runningFold: (initial, fn) => {
       const gn = fold(generator, initial, fn);
       return Sequence(gn);
     },
-    runningReduce: (fn) => {
-      generator = reduce(generator, fn);
-      return fns;
-    },
+    runningReduce: (fn) => Sequence(reduce(generator, fn)),
     scan: (initial, fn) => fns.runningFold(initial, fn),
     single: (fn = () => true) => {
       let elem;
@@ -1333,7 +1470,8 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
     sum: () => {
       let sum = 0;
       for (const x of generator) {
-        sum += x as number;
+        if (typeof x !== "number") throw new Error("Non-numeric sequence");
+        sum += x;
       }
       return sum;
     },
@@ -1341,20 +1479,18 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       let sum = 0;
       let i = 0;
       for (const x of generator) {
-        sum += fn(x, i) as number;
+        const val = fn(x, i);
+        if (typeof val !== "number") throw new Error("Non-numeric sequence");
+        sum += val;
         i++;
       }
       return sum;
     },
     take: (n) => {
       if (n < 0) throw new Error("n out of bounds");
-      generator = take(generator, n);
-      return fns;
+      return Sequence(take(generator, n));
     },
-    takeWhile: (fn) => {
-      generator = takeWhile(generator, fn);
-      return fns;
-    },
+    takeWhile: (fn) => Sequence(takeWhile(generator, fn)),
     throw: generator.throw.bind(generator),
     toArray: () => [...generator],
     toSet: () => {
@@ -1364,17 +1500,18 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
       }
       return set;
     },
-    unzip: <U>() => {
-      const one: U[] = [];
-      const two: U[] = [];
+    unzip: (() => {
+      const one: unknown[] = [];
+      const two: unknown[] = [];
 
       for (const x of generator) {
-        one.push((x as U[])[0]!);
-        two.push((x as U[])[1]!);
+        const arr = x as unknown as readonly [unknown, unknown];
+        one.push(arr[0]);
+        two.push(arr[1]);
       }
 
       return [one, two] as const;
-    },
+    }) as Functions<T>["unzip"],
     windowed: <U>(
       size: number,
       step?: number,
@@ -1398,17 +1535,26 @@ export function Sequence<T>(this: any, it: Generator<T> | T[]) {
     },
     [Symbol.iterator]() {
       return generator;
+    },
+    [Symbol.dispose]() {
+      generator[Symbol.dispose]?.();
     }
   };
 
   return fns;
 }
 
-function* arrToSequence<T>(arr: T[]) {
-  for (const x of arr) {
-    yield x;
-  }
+function arrToSequence<T>(arr: T[]): Generator<T> {
+  const iterator = arr[Symbol.iterator]();
+  return {
+    next: () => iterator.next(),
+    return: (value?: T) => {
+      return { done: true, value } as IteratorResult<T>;
+    },
+    throw: (e?: unknown) => {
+      throw e;
+    },
+    [Symbol.iterator]: () => arr[Symbol.iterator](),
+    [Symbol.dispose]: () => {}
+  } as Generator<T>;
 }
-
-type InnerNest<T> =
-  T extends Array<infer U> ? U : T extends Generator<infer V> ? V : never;

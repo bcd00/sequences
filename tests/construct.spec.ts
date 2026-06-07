@@ -5,7 +5,7 @@ describe("generateSequence", () => {
   test("generateSequence", () => {
     const seq = generateSequence(0, (x) => x + 1);
     const val = seq.take(5).toArray();
-    assert.deepEqual(val, [1, 2, 3, 4, 5]);
+    assert.deepEqual(val, [0, 1, 2, 3, 4]);
   });
 
   test("generateSequenceFunctionSeed", () => {
@@ -14,13 +14,13 @@ describe("generateSequence", () => {
       (x) => x + 1
     );
     const val = seq.take(5).toArray();
-    assert.deepEqual(val, [1, 2, 3, 4, 5]);
+    assert.deepEqual(val, [0, 1, 2, 3, 4]);
   });
 
   test("generateSequenceWithIndex", () => {
     const seq = generateSequence(0, (x, i) => x + i);
     const val = seq.take(5).toArray();
-    assert.deepEqual(val, [0, 1, 3, 6, 10]);
+    assert.deepEqual(val, [0, 0, 1, 3, 6]);
   });
 });
 
@@ -49,13 +49,33 @@ describe("purity", () => {
     const seq = Sequence([0, 1, 2, 3]);
 
     assert.equal(seq.first(), 0);
-    assert.equal(seq.first((x) => x > 0), 1);
+    assert.equal(
+      seq.first((x) => x > 0),
+      1
+    );
     assert.equal(seq.firstOrNull(), 2);
-    assert.equal(seq.firstOrNull((x) => x > 0), 3);
+    assert.equal(
+      seq.firstOrNull((x) => x > 0),
+      3
+    );
 
     const fresh1 = Sequence([0, 1, 2, 3]);
-    assert.deepEqual(fresh1.filterTo([49], (x) => x > 0), [49, 1, 2, 3]);
+    assert.deepEqual(
+      fresh1.filterTo([49], (x) => x > 0),
+      [49, 1, 2, 3]
+    );
     const fresh2 = Sequence([0, 1, 2, 3]);
-    assert.deepEqual(fresh2.filterNotTo([49], (x) => x === 0), [49, 1, 2, 3]);
+    assert.deepEqual(
+      fresh2.filterNotTo([49], (x) => x === 0),
+      [49, 1, 2, 3]
+    );
+  });
+
+  test("array sequences are reusable", () => {
+    const seq = Sequence([0, 1, 2, 3]);
+    assert.deepEqual(seq.toArray(), [0, 1, 2, 3]);
+    assert.deepEqual(seq.toArray(), [0, 1, 2, 3]);
+    assert.equal(seq.count(), 4);
+    assert.equal(seq.count(), 4);
   });
 });
